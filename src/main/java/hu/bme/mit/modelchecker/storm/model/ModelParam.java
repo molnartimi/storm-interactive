@@ -1,9 +1,9 @@
 package hu.bme.mit.modelchecker.storm.model;
 
-public class ModelConst {
+public class ModelParam {
 	public final String name;
-
-	public ModelConst(String name) {
+	
+	public ModelParam(String name) {
 		this.name = name;
 	}
 

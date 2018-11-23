@@ -2,64 +2,103 @@ package hu.bme.mit.modelchecker.storm.checker;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import hu.bme.mit.modelchecker.storm.exception.StormException;
 import hu.bme.mit.modelchecker.storm.model.InputModel;
-import hu.bme.mit.modelchecker.storm.model.InputModelType;
+import hu.bme.mit.modelchecker.storm.model.ModelParam;
 import hu.bme.mit.modelchecker.storm.model.ModelReward;
 
 public class StormRunner {
-	
-	public static Map<ModelReward, Double> run(InputModel model) {
-		Map<ModelReward, Double> results = new HashMap<>();
-		try {
-			for (ModelReward reward: model.getRewards()) {
-				Process process = new ProcessBuilder()
-						.command(getArgs(model.filePath, model.type, reward)).start();
-			    BufferedReader reader = 
-			         new BufferedReader(new InputStreamReader(process.getInputStream()));
+	private Map<ModelParam, Number> params = new HashMap<>(); 
+	private List<ModelReward> rewards = new ArrayList<>();
+	private InputModel model;
+	private Logger logger;
 
-			    Double rewardResult = readResult(reader);
-			    if (rewardResult != null) {
-			    	results.put(reward, rewardResult);
-			    }
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return results;
+	public StormRunner(InputModel model, Map<ModelParam, Number> params, List<ModelReward> rewards) {
+		this.params = params;
+		this.rewards = rewards;
+		this.model = model;
+		logger = LoggerFactory.getLogger("StormRunner");
+	}
+	
+	public AnalysisResult runSteadyStateCheck() throws IOException, StormException {
+		Process process = new ProcessBuilder().command(createCommandArgs()).start();
+		return parseResponse(process.getInputStream());
 	}
 
-	private static List<String> getArgs(String modelPath, InputModelType type, ModelReward reward) {
-		List<String> args = new ArrayList<>();
-		args.add("storm");
-		args.add("--buildfull");
+	private AnalysisResult parseResponse(InputStream inputStream) throws IOException, StormException {
+		BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+		Map<ModelReward, Double> result = new HashMap<>();
 		
-		switch (type) {
-		case PRISM:
-			args.add("--prismcompat");
-			args.add("--prism");
+		String line = "";
+		ModelReward checkingReward = null;
+		while ((line = reader.readLine()) != null) {
+			logger.info(line);
+			
+			if (line.contains("ERROR")) {
+				throw new StormException("Error occured at running storm");
+			} else if (line.indexOf("Model checking property R[exp]") == 0) {
+				String rewardName = line.substring(line.indexOf("{") + 2, line.indexOf("}") - 1);
+				checkingReward = rewards.stream()
+						  .filter(reward -> reward.name.equals(rewardName))
+						  .findAny()
+						  .orElse(null);
+			} else if (line.indexOf("Result") == 0 && checkingReward != null) {
+				result.put(checkingReward, Double.valueOf(line.substring(line.indexOf(":") + 1).trim()));
+			}
 		}
 		
-		args.add(modelPath);
+		return new AnalysisResult(result);
+	}
+
+	private List<String> createCommandArgs() throws StormException {
+		List<String> args = new ArrayList<>();
 		
+		args.add("storm");
+		args.addAll(getExtraArgsBeforeModelPath());
+		args.add(model.filePath);
+		args.add("--buildfull");
+		args.add("-const");
+		args.add(getParamValues());
 		args.add("--prop");
-		args.add("R{\"" + reward.name + "\"}=? [S]");
+		args.add(getPropertyString());
+		
 		return args;
 	}
 
-	private static Double readResult(BufferedReader reader) throws IOException {
-		String line;
-		while ((line = reader.readLine()) != null) {
-			if (line.indexOf("Result") == 0) {
-				String value = line.substring(line.indexOf(":") + 1).trim();
-				return Double.valueOf(value);
-			}
+	private String getPropertyString() {
+		String rewardProperties = "";
+		for (ModelReward reward: rewards) {
+			rewardProperties += "R{\"" + reward.name + "\"}=? [ S ];";
 		}
-		return null;
+		return rewardProperties;
+	}
+
+	private String getParamValues() {
+		List<String> paramsWithValues = new ArrayList<>();
+		for (Map.Entry<ModelParam, Number> paramEntry: params.entrySet()) {
+			paramsWithValues.add(paramEntry.getKey().name + "=" + paramEntry.getValue());
+		}
+		return String.join(",", paramsWithValues);
+	}
+
+	private List<String> getExtraArgsBeforeModelPath() throws StormException {
+		String fileExtension = model.filePath.substring(model.filePath.indexOf(".") + 1);
+		switch (fileExtension) {
+		case "prism":
+		case "sm":
+			return Arrays.asList(new String[] {"-pc", "--prism"});
+		default: throw new StormException(fileExtension + " file format not supported by storm-interactive");
+		}
 	}
 }
