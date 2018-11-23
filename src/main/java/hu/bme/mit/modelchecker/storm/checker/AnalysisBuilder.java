@@ -14,6 +14,7 @@ public class AnalysisBuilder {
 	private Map<ModelParam, Number> params = new HashMap<>(); 
 	private List<ModelReward> rewards = new ArrayList<>();
 	private InputModel model;
+	private Double tolerance;
 	
 	public AnalysisBuilder(InputModel model) {
 		this.model = model;
@@ -32,8 +33,13 @@ public class AnalysisBuilder {
 		return this;
 	}
 	
+	public AnalysisBuilder withTolerance(Double tol) {
+		this.tolerance = tol;
+		return this;
+	}
+	
 	public StormRunner build() {
-		return new StormRunner(model, params, rewards);
+		return (tolerance == null) ? new StormRunner(model, params, rewards) : new StormRunner(model, params, rewards, tolerance);
 	}
 
 }

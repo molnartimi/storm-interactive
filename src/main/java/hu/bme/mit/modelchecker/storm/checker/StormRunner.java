@@ -23,6 +23,7 @@ public class StormRunner {
 	private List<ModelReward> rewards = new ArrayList<>();
 	private InputModel model;
 	private Logger logger;
+	private Double tolerance;
 
 	public StormRunner(InputModel model, Map<ModelParam, Number> params, List<ModelReward> rewards) {
 		this.params = params;
@@ -30,35 +31,15 @@ public class StormRunner {
 		this.model = model;
 		logger = LoggerFactory.getLogger("StormRunner");
 	}
-	
+
+	public StormRunner(InputModel model, Map<ModelParam, Number> params, List<ModelReward> rewards, Double tolerance) {
+		this(model, params, rewards);
+		this.tolerance = tolerance;
+	}
+
 	public AnalysisResult runSteadyStateCheck() throws IOException, StormException {
 		Process process = new ProcessBuilder().command(createCommandArgs()).start();
 		return parseResponse(process.getInputStream());
-	}
-
-	private AnalysisResult parseResponse(InputStream inputStream) throws IOException, StormException {
-		BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-		Map<ModelReward, Double> result = new HashMap<>();
-		
-		String line = "";
-		ModelReward checkingReward = null;
-		while ((line = reader.readLine()) != null) {
-			logger.info(line);
-			
-			if (line.contains("ERROR")) {
-				throw new StormException("Error occured at running storm");
-			} else if (line.indexOf("Model checking property R[exp]") == 0) {
-				String rewardName = line.substring(line.indexOf("{") + 2, line.indexOf("}") - 1);
-				checkingReward = rewards.stream()
-						  .filter(reward -> reward.name.equals(rewardName))
-						  .findAny()
-						  .orElse(null);
-			} else if (line.indexOf("Result") == 0 && checkingReward != null) {
-				result.put(checkingReward, Double.valueOf(line.substring(line.indexOf(":") + 1).trim()));
-			}
-		}
-		
-		return new AnalysisResult(result);
 	}
 
 	private List<String> createCommandArgs() throws StormException {
@@ -72,6 +53,10 @@ public class StormRunner {
 		args.add(getParamValues());
 		args.add("--prop");
 		args.add(getPropertyString());
+		if (tolerance != null) {
+			args.add("--precision");
+			args.add(Double.toString(tolerance));
+		}
 		
 		return args;
 	}
@@ -100,5 +85,30 @@ public class StormRunner {
 			return Arrays.asList(new String[] {"-pc", "--prism"});
 		default: throw new StormException(fileExtension + " file format not supported by storm-interactive");
 		}
+	}
+	
+	private AnalysisResult parseResponse(InputStream inputStream) throws IOException, StormException {
+		BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+		Map<ModelReward, Double> result = new HashMap<>();
+		
+		String line = "";
+		ModelReward checkingReward = null;
+		while ((line = reader.readLine()) != null) {
+			logger.info(line);
+			
+			if (line.contains("ERROR")) {
+				throw new StormException("Error occured at running storm");
+			} else if (line.indexOf("Model checking property R[exp]") == 0) {
+				String rewardName = line.substring(line.indexOf("{") + 2, line.indexOf("}") - 1);
+				checkingReward = rewards.stream()
+						  .filter(reward -> reward.name.equals(rewardName))
+						  .findAny()
+						  .orElse(null);
+			} else if (line.indexOf("Result") == 0 && checkingReward != null) {
+				result.put(checkingReward, Double.valueOf(line.substring(line.indexOf(":") + 1).trim()));
+			}
+		}
+		
+		return new AnalysisResult(result);
 	}
 }
