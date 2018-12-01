@@ -24,16 +24,27 @@ public class StormRunner {
 	private InputModel model;
 	private Logger logger;
 	private Double tolerance;
+	private boolean silent;
 
 	public StormRunner(InputModel model, Map<ModelParam, Number> params, List<ModelReward> rewards) {
+		this(model, params, rewards, true);
+	}
+	
+	public StormRunner(InputModel model, Map<ModelParam, Number> params, List<ModelReward> rewards, boolean silent) {
 		this.params = params;
 		this.rewards = rewards;
 		this.model = model;
 		logger = LoggerFactory.getLogger("StormRunner");
+		this.silent = silent;
 	}
 
 	public StormRunner(InputModel model, Map<ModelParam, Number> params, List<ModelReward> rewards, Double tolerance) {
-		this(model, params, rewards);
+		this(model, params, rewards, true);
+		this.tolerance = tolerance;
+	}
+	
+	public StormRunner(InputModel model, Map<ModelParam, Number> params, List<ModelReward> rewards, Double tolerance, boolean silent) {
+		this(model, params, rewards, silent);
 		this.tolerance = tolerance;
 	}
 
@@ -45,7 +56,7 @@ public class StormRunner {
 	private List<String> createCommandArgs() throws StormException {
 		List<String> args = new ArrayList<>();
 		
-		args.add("storm");
+		args.add("/home/storm/storm/build/bin/storm");
 		args.addAll(getExtraArgsBeforeModelPath());
 		args.add(model.filePath);
 		args.add("--buildfull");
@@ -78,7 +89,10 @@ public class StormRunner {
 	}
 
 	private List<String> getExtraArgsBeforeModelPath() throws StormException {
-		String fileExtension = model.filePath.substring(model.filePath.indexOf(".") + 1);
+		String fileExtension = model.filePath;
+		while (fileExtension.contains(".")) {
+			fileExtension = fileExtension.substring(model.filePath.indexOf(".") + 1);
+		}
 		switch (fileExtension) {
 		case "prism":
 		case "sm":
@@ -94,7 +108,7 @@ public class StormRunner {
 		String line = "";
 		ModelReward checkingReward = null;
 		while ((line = reader.readLine()) != null) {
-			logger.info(line);
+			if (!silent) logger.info(line);
 			
 			if (line.contains("ERROR")) {
 				throw new StormException("Error occured at running storm");

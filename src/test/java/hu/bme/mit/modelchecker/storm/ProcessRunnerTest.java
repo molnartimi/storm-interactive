@@ -34,6 +34,7 @@ public class ProcessRunnerTest {
 					.withParam(requestRate, 1.5)
 					.withReward(Idle)
 					.withReward(ServedRequests)
+					.withConsolLogInfo(true)
 					.build()
 					.runSteadyStateCheck();
 			

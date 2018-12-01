@@ -15,6 +15,7 @@ public class AnalysisBuilder {
 	private List<ModelReward> rewards = new ArrayList<>();
 	private InputModel model;
 	private Double tolerance;
+	private boolean silentMode = true;
 	
 	public AnalysisBuilder(InputModel model) {
 		this.model = model;
@@ -38,8 +39,13 @@ public class AnalysisBuilder {
 		return this;
 	}
 	
+	public AnalysisBuilder withConsolLogInfo(boolean withLog) {
+		this.silentMode = !withLog;
+		return this;
+	}
+	
 	public StormRunner build() {
-		return (tolerance == null) ? new StormRunner(model, params, rewards) : new StormRunner(model, params, rewards, tolerance);
+		return (tolerance == null) ? new StormRunner(model, params, rewards, silentMode) : new StormRunner(model, params, rewards, tolerance, silentMode);
 	}
 
 }
