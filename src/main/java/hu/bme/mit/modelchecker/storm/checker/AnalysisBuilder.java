@@ -34,11 +34,6 @@ public class AnalysisBuilder {
 		return this;
 	}
 	
-	public AnalysisBuilder withTolerance(Double tol) {
-		this.tolerance = tol;
-		return this;
-	}
-	
 	public AnalysisBuilder withConsolLogInfo(boolean withLog) {
 		this.silentMode = !withLog;
 		return this;

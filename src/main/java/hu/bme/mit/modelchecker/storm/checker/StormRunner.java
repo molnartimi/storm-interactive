@@ -56,7 +56,7 @@ public class StormRunner {
 	private List<String> createCommandArgs() throws StormException {
 		List<String> args = new ArrayList<>();
 		
-		args.add("/home/storm/storm/build/bin/storm");
+		args.add("storm");
 		args.addAll(getExtraArgsBeforeModelPath());
 		args.add(model.filePath);
 		args.add("--buildfull");
@@ -94,6 +94,8 @@ public class StormRunner {
 			fileExtension = fileExtension.substring(model.filePath.indexOf(".") + 1);
 		}
 		switch (fileExtension) {
+		case "jani":
+			return Arrays.asList(new String[] {"--jani"});
 		case "prism":
 		case "sm":
 			return Arrays.asList(new String[] {"-pc", "--prism"});
@@ -111,8 +113,11 @@ public class StormRunner {
 			if (!silent) logger.info(line);
 			
 			if (line.contains("ERROR")) {
+				while ((line = reader.readLine()) != null) {
+					logger.info(line);
+				}
 				throw new StormException("Error occured at running storm");
-			} else if (line.indexOf("Model checking property R[exp]") == 0) {
+			} else if (line.indexOf("Model checking property") == 0) {
 				String rewardName = line.substring(line.indexOf("{") + 2, line.indexOf("}") - 1);
 				checkingReward = rewards.stream()
 						  .filter(reward -> reward.name.equals(rewardName))
